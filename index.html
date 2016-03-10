@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Capacitor Touch simulator</title>
+    <link rel="stylesheet" href="style.css"/>
+    <script src="main.js"></script>
+</head>
+<body>
+    <div id="container">
+        LED: <div id="led" class="led-off"></div>
+        <br><br>
+        Pomarańcza: <div id="ora"></div>  (najedź myszką!)
+        <br>
+        <br>
+        Kod:
+        <input id="execute" name="execute" value="Execute!" type="button"/><br/>
+        <textarea rows="30" cols="80">
+function setup () { }
+var lastStatus = false;
+var ledStatus = false;
+function loop () {
+    var signal = getCapacitor(ORANGE, 30);
+    if (signal &gt; 10 &amp;&amp; !lastStatus) {
+        ledStatus ^= 1;
+        setPin(LED, ledStatus ? HIGH : LOW);
+    }
+    lastStatus = signal &gt; 10;
+}
+</textarea>
+    </div>
+</body>
+</html>
