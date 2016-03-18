@@ -23,8 +23,8 @@ function loop () {
     var signal = getCapacitor(ORANGE, 30);
     if (signal &gt; 10 &amp;&amp; !lastStatus) {
         ledStatus ^= 1;
-        setPin(LED, ledStatus ? HIGH : LOW);
     }
+    setPin(LED, ledStatus ? HIGH : LOW);
     lastStatus = signal &gt; 10;
 }
 </textarea>

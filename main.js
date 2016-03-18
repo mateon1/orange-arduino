@@ -1,6 +1,62 @@
 document.addEventListener("DOMContentLoaded", function(){
     "use strict";
-    var workerFooter = 'onmessage = function(ev) {\n    switch (ev.data.type) {\n        case "orange":\n            _cond = ev.data.state;\n            break;\n    }\n}\nvar _cond=0;\nvar LED = 15, ORANGE = 14, HIGH=1, LOW=0;\nfunction getPin(n) {return ev.data.state; }\nfunction setPin(n, v) {if (n == LED) postMessage({type:"led", state: v}); }\nfunction getCapacitor(n, l) {\n    return ~~ ( (Math.random()*.6+.7) * l * (n == ORANGE && _cond ? 1 : 0.04) );\n}\npostMessage({type: "alive"});\nsetup();\nsetInterval(loop, 30);';
+    var LED = 15, ORANGE = 14;
+    var workerFooter = `
+var LED = 15, ORANGE = 14, HIGH=1, LOW=0, UNKNOWN=-1;
+var _loopTime = 30; // in ms
+var _pinStatus = {};
+onmessage = function(ev) {
+    switch (ev.data.type) {
+        case "updatePin":
+            _error("UpdatePin: " + JSON.stringify(ev.data));
+            _setPin(ev.data.pinId, ev.data.state, true);
+            break;
+        case "init":
+            _error("InitPin: " + JSON.stringify(ev.data));
+            _initPins(ev.data.pins);
+            break;
+        default:
+            _error("Unknown event, " + JSON.stringify(ev.data));
+            break;
+    }
+}
+
+function _error(msg) {
+    if (self.console && console.log) console.log(msg);
+    postMessage({type: "error", msg: msg});
+}
+
+function _initPins(o) {
+    for (var pin in o) {
+        if (o.hasOwnProperty(pin)) {
+            var val = o[pin];
+            if (_pinStatus[pin] !== val) _setPin(pin, val, true);
+        }
+    }
+}
+
+function _setPin(id, v, triggerEvents) {
+    if (_pinStatus[id] == v) return;
+    _pinStatus[id] = v;
+    // TODO: Events
+}
+
+function getPin(n) {return _pinStatus[n] ? HIGH : LOW; } // Undefined -> Low
+function setPin(n, v) {
+    if (_pinStatus[n] == v) return;
+    _setPin(n, v, false)
+    postMessage({type:"pushPin", pinId: n, state: v});
+}
+function getCapacitor(n, l) {
+    return l * (getPin(n) == HIGH);
+    // return ~~ ( (Math.random()*.6+.7) * l * (n == ORANGE && _cond ? 1 : 0.04) );
+}
+postMessage({type: "alive"});
+setup();
+(function loopClosure() {
+    loop();
+    setTimeout(loopClosure, _loopTime); // Not setInterval() to allow more idle time
+}());`;
 
     var ora = document.querySelector("#ora"),
         led = document.querySelector("#led"),
@@ -11,19 +67,25 @@ document.addEventListener("DOMContentLoaded", function(){
         return worker;
     }
 
-    var curWorker = null;
+    var curWorker = null, oraState = false;
     function swapWorker(src) {
         if (curWorker) curWorker.terminate();
         curWorker = makeWorker(src);
         curWorker.onmessage = wmsg;
+        var p = {}
+    p[ORANGE] = oraState;
+    curWorker.postMessage({type: "init", pins: p})
     }
     function wmsg(ev) {
         switch (ev.data.type) {
-            case "led":
-                led.className = ev.data.state ? "led-on" : "led-off"
+            case "pushPin":
+                if (ev.data.pinId == LED) led.className = ev.data.state ? "led-on" : "led-off"
                 break;
             case "alive":
                 console.log("Worker is alive!");
+                var p = {}
+                p[ORANGE] = oraState;
+                curWorker.postMessage({type: "init", pins: p})
                 break;
             default:
                 console.log("Unkown worker message", ev);
@@ -31,14 +93,17 @@ document.addEventListener("DOMContentLoaded", function(){
     }
 
     ora.addEventListener("mouseover", function () {
+        oraState = true;
         if (!curWorker) return false;
-        curWorker.postMessage({type:"orange", state:1});
+        curWorker.postMessage({type:"updatePin", pinId: ORANGE, state:1});
     });
     ora.addEventListener("mouseleave", function () {
+        oraState = false;
         if (!curWorker) return false;
-        curWorker.postMessage({type:"orange", state:0});
+        curWorker.postMessage({type:"updatePin", pinId: ORANGE, state:0});
     });
     execute.addEventListener("click", function () {
+        led.className = "led-off";
         console.log("Executing code!");
         swapWorker(document.querySelector("textarea").value + workerFooter);
     });
